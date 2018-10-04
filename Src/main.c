@@ -9,7 +9,7 @@ HAL_StatusTypeDef	flash_ok = HAL_ERROR;
 /* Private variables ---------------------------------------------------------*/
 float pressure, temperature, humidity;
 uint8_t Data_ERROR[] = {0xDC, 0x00, 0x00, 0x00, 0x00};
-uint8_t Data_Tx[32];
+
 unsigned int result = 0;
 uint8_t buffer_TX[RF_DATA_SIZE]; ////
 uint8_t size_UART = 0;
@@ -17,9 +17,13 @@ uint8_t size_UART = 0;
 uint8_t Tcounter = 0;
 uint8_t Tcounter1 = 0;
 
-uint8_t Data[10];
-uint8_t Data_Config[10] = {0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09};
+uint8_t Data[20];//					C			o			n			f			:			2			2			0			:			0
+//uint8_t Data_Config[20] = {0x43, 0x6F, 0x6F, 0x66, 0x3A, 0x32, 0x32, 0x30, 0x3A, 0x30};
+uint8_t Data_temp[20];
+uint16_t Data_Config[4];
 uint8_t str=0;
+uint8_t ID_Device;
+
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 
@@ -58,10 +62,13 @@ void TIM2_IRQHandler(void)
 int main(void)
 {
 	uint8_t Flag_Start_colect = 0;
-//	uint8_t Flag_Error_funct = 0;
+	uint8_t Flag_Start_colect_config = 0;
+	uint8_t Flag_Start_colect_config_is_Full = 0;
 	uint8_t Flag_Receive_valid = 0;
 	uint8_t Flag_Receive_Buff_is_Full = 0;
 	uint8_t count = 0;
+	uint8_t count1 = 0;
+	
 	
   /* MCU Configuration----------------------------------------------------------*/
   /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
@@ -74,34 +81,53 @@ int main(void)
   MX_I2C1_Init();
   MX_TIM2_Init();
 	MX_NVIC_Init();
-	HAL_UART_MspInit(&huart2);
+	
 
 	HAL_TIM_Base_Start(&htim2);
   HAL_TIM_Base_Start_IT(&htim2);
+//#######################################################################################
+		if (flash_read(0x08003F00) == 0){
+			flash_ok = HAL_ERROR;			
+			while(flash_ok != HAL_OK){			//Делаем память открытой
+				flash_ok = HAL_FLASH_Unlock();
+			}
+			flash_ok = HAL_ERROR;
+			while(flash_ok != HAL_OK){			
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003F00, 0xDC);
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003F10, 9600);
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003F20, 0);
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003F30, 1);	
+			}	
+			while(flash_ok != HAL_OK){			//Закрываем память
+				flash_ok = HAL_FLASH_Lock();
+			}			
+		} //else {
+//			ID_Device = flash_read(0x08003F00);
+//			Data_Config[1] = flash_read(0x08003F10);
+//			Data_Config[2] = flash_read(0x08003F20);
+//			Data_Config[3] = flash_read(0x08003F30);		
+//		}
+		ID_Device = flash_read(0x08003F00);
+//#######################################################################################
 
-	
+	HAL_UART_MspInit(&huart2);
+		
 	bmp280_init_default_params(&bmp280.params);
 	bmp280.addr = BMP280_I2C_ADDRESS_0;
 	bmp280.i2c = &hi2c1;
 
-	HAL_Delay(500);
-
-
-	
+	HAL_Delay(200);
 	while (!bmp280_init(&bmp280, &bmp280.params)) {
 		HAL_Delay(2000);
 	}
 	while (!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)) {
 		HAL_Delay(2000);
-	}	
-	
+	}		
 			uint16_t rezAtmPressureGPa_uint =	(uint16_t)pressure;
 			uint16_t rezHumidity_uint =      	(uint16_t)(humidity * 10);
 			int16_t rezTemperature_int = 			(int16_t)(temperature * 10);			
 			uint16_t rezAtmPressure_uint = 		(uint16_t)pressure * 0.75;
 
-	
-	
 			buffer_TX[0]=0xDC;
 			buffer_TX[1]=0x03;
 			buffer_TX[2]=0x10;
@@ -121,119 +147,6 @@ int main(void)
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
-//##################################################################
-		if (flash_read(0x08003E80) == 0){
-			flash_ok = HAL_ERROR;			
-			while(flash_ok != HAL_OK){			//Делаем память открытой
-				flash_ok = HAL_FLASH_Unlock();
-			}
-			flash_ok = HAL_ERROR;
-			while(flash_ok != HAL_OK){			
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003E80, 0x57);
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003E90, 9600);
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003EA0, 0);
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003EB0, 1);	
-			}	
-			while(flash_ok != HAL_OK){			//Закрываем память
-				flash_ok = HAL_FLASH_Lock();
-			}			
-		}
-//##################################################################
-FLASH_EraseInitTypeDef EraseInitStruct;
-uint32_t PAGEError = 0;
-
-EraseInitStruct.TypeErase   =  TYPEERASE_PAGES;
-EraseInitStruct.PageAddress = 0x08003E80;
-EraseInitStruct.NbPages     = (0x08003F10 - 0x08003E80) / FLASH_PAGE_SIZE;
-//EraseInitStruct..NbPages = 1;
-
-	
-if (flash_read(0x08003E80) == 0x57){
-HAL_UART_Transmit(&huart2, &Data_Config[0], 1, 0xFFFF);
-			flash_ok = HAL_ERROR;
-			
-				flash_ok = HAL_FLASH_Unlock();//Делаем память открытой
-
-			while(flash_ok != HAL_OK){
-				flash_ok = HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError);
-HAL_UART_Transmit(&huart2, &Data_Config[1], 1, 0xFFFF);
-			}
-		
-				flash_ok = HAL_FLASH_Lock();//Закрываем память
-
-
-		
-				flash_ok = HAL_FLASH_Unlock();//Делаем память открытой
-
-HAL_UART_Transmit(&huart2, &Data_Config[2], 1, 0xFFFF);			
-			
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003E80, 0x58);
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003E90, 9600);
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003EA0, 0);
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003EB0, 1);
-
-HAL_UART_Transmit(&huart2, &Data_Config[3], 1, 0xFFFF);			
-		
-				flash_ok = HAL_FLASH_Lock();//Закрываем память
-	
-	}
-
-
-
-
-			
-//		HAL_Delay(500);
-//		if (flash_read(0x08003E80) == 0x57){
-//			HAL_UART_Transmit(&huart2, &Data_Config[0], 1, 0xFFFF);
-//			flash_ok = HAL_ERROR;			
-//			while(flash_ok != HAL_OK){			//Делаем память открытой
-//				flash_ok = HAL_FLASH_Unlock();
-//			}		
-//			HAL_UART_Transmit(&huart2, &Data_Config[1], 1, 0xFFFF);
-//			HAL_Delay(500);
-//			flash_ok = HAL_ERROR;
-//			FLASH_PageErase(0x08003E80);
-//			FLASH_PageErase(0x08003F00);
-//			HAL_UART_Transmit(&huart2, &Data_Config[2], 1, 0xFFFF);
-//			HAL_Delay(500);
-//			while(flash_ok != HAL_OK){			//Закрываем память
-//				flash_ok = HAL_FLASH_Lock();
-//			}	
-//			HAL_UART_Transmit(&huart2, &Data_Config[3], 1, 0xFFFF);
-//			flash_ok = HAL_ERROR;			
-//			while(flash_ok != HAL_OK){			//Делаем память открытой
-//				flash_ok = HAL_FLASH_Unlock();
-//			}
-//			HAL_Delay(500);
-//			flash_ok = HAL_ERROR;
-//			while(flash_ok != HAL_OK){			
-//				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003E80, 0x58);
-//				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003E90, 9600);
-//				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003EA0, 0);
-//				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003EB0, 1);
-//				HAL_UART_Transmit(&huart2, &Data_Config[4], 1, 0xFFFF);
-//			}
-//			HAL_Delay(500);
-//			while(flash_ok != HAL_OK){			//Закрываем память
-//				flash_ok = HAL_FLASH_Lock();
-//			}			
-//			
-//		}
-//HAL_Delay(500);
-
-						
-		
-		
-		
-
-		
-
-
-
-
-
-
-
 	HAL_UART_Receive_IT(&huart2,&str, 1);
   while (1)
   {	
@@ -244,7 +157,23 @@ HAL_UART_Transmit(&huart2, &Data_Config[3], 1, 0xFFFF);
 
 //  ******************************************************************************		
 		if(huart2.RxXferCount==0){																										//
-			if (str == 0xDC){																																				// Проверяем кому адресовано сообщение. Если нам - (0xDC) то
+			if (str == 0x43){
+				Flag_Start_colect_config = 1;			
+			}
+			if (Flag_Start_colect_config == 1){																											// Наполняем буфер
+				Data[count1] = str;			
+				count1 ++;
+			}	
+			if (count1 == 20){// && str == 0x5E){
+				Flag_Start_colect_config_is_Full = 1;
+				Flag_Start_colect_config = 0;
+				count1 = 0;
+			}
+			
+			
+			
+//  ******************************************************************************			
+			if (str == ID_Device){																																				// Проверяем кому адресовано сообщение. Если нам - (0xDC) то
 				Flag_Start_colect = 1;																																// ставим флаг разрешения сбора данных
 			}
 			if (Flag_Start_colect == 1){																														// Наполняем буфер
@@ -257,6 +186,7 @@ HAL_UART_Transmit(&huart2, &Data_Config[3], 1, 0xFFFF);
 				Flag_Start_colect = 0;																																// 
 				count = 0;																																						// 
 			}		
+//			HAL_UART_Transmit(&huart2, &str, 20, 0xFFFF);
 			HAL_UART_Receive_IT(&huart2, &str, 1);																										// Start UART Recive again					
 		}		
 //  ******************************************************************************
@@ -268,7 +198,7 @@ HAL_UART_Transmit(&huart2, &Data_Config[3], 1, 0xFFFF);
 					Flag_Receive_valid = 1;																															//					
 				} else {																																							//
 					Flag_Receive_Buff_is_Full = 0;																											// Если иначе - очищаем буфер и флаги
-					for (uint8_t i = 0; i<=7; i++){																											//
+					for (uint8_t i = 0; i<=20; i++){																											//
 						Data[i] = 0;																																			//
 					}																																										//
 				}																																											//
@@ -284,7 +214,7 @@ HAL_UART_Transmit(&huart2, &Data_Config[3], 1, 0xFFFF);
 				HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																		//
 				Flag_Receive_Buff_is_Full = 0;																											  // очищаем буфер и флаги
 				Flag_Receive_valid = 0;
-				for (uint8_t i = 0; i<=7; i++){
+				for (uint8_t i = 0; i<=20; i++){
 					Data[i] = 0;
 				}				
 			}
@@ -299,7 +229,7 @@ HAL_UART_Transmit(&huart2, &Data_Config[3], 1, 0xFFFF);
 				HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																		//
 				Flag_Receive_Buff_is_Full = 0;																											  // очищаем буфер и флаги
 				Flag_Receive_valid = 0;
-				for (uint8_t i = 0; i<=7; i++){
+				for (uint8_t i = 0; i<=20; i++){
 					Data[i] = 0;
 				}				
 			}			
@@ -314,7 +244,7 @@ HAL_UART_Transmit(&huart2, &Data_Config[3], 1, 0xFFFF);
 				HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																		//
 				Flag_Receive_Buff_is_Full = 0;																											  // очищаем буфер и флаги
 				Flag_Receive_valid = 0;
-				for (uint8_t i = 0; i<=7; i++){
+				for (uint8_t i = 0; i<=20; i++){
 					Data[i] = 0;
 				}				
 			}	
@@ -324,7 +254,7 @@ HAL_UART_Transmit(&huart2, &Data_Config[3], 1, 0xFFFF);
 				HAL_UART_Transmit(&huart2, buffer_TX, 15, 0xFFFF);																		// отправляем ответ с данными
 				Flag_Receive_Buff_is_Full = 0;																												// очищаем буфер и флаги
 				Flag_Receive_valid = 0;																																//
-				for (uint8_t i = 0; i<=7; i++){																												//
+				for (uint8_t i = 0; i<=20; i++){																												//
 					Data[i] = 0;																																				//
 				}																																											//
 			}			
@@ -351,8 +281,9 @@ HAL_UART_Transmit(&huart2, &Data_Config[3], 1, 0xFFFF);
 				result = calculate_Crc16(buffer_TX, 13);
 				buffer_TX[13] = result & 0xFF;
 				buffer_TX[14] = result >> 8;				
-				
-				
+//				size_UART = sprintf((char *)Data,"I am alive\n\r");
+//				HAL_UART_Transmit(&huart2, Data, size_UART, 0xFFFF);					
+		}		
 				
 //		size_UART = sprintf((char *)Data_Tx,"Pressure: %.2d GPa, Temperature: %.1d C, Humidity: %.2d\n\r",
 //				rezAtmPressureGPa_uint, rezTemperature_int, rezHumidity_uint);
@@ -374,8 +305,58 @@ HAL_UART_Transmit(&huart2, &Data_Config[3], 1, 0xFFFF);
 //   7     |    давление, мм. рт. ст uint16_t - MSB 
 //   8     |    давление, гПа uint16_t - LSB 
 //   9     |    давление, гПа uint16_t - MSB      		
-				
-		}	
+
+
+//uint8_t Data[10];//					C			o			n			f			:			2			2			0			:			0
+//uint8_t Data_Config[20] = {0x43, 0x6F, 0x6F, 0x66, 0x3A, 0x32, 0x32, 0x30, 0x3A, 0x30};
+
+
+			if (Flag_Start_colect_config_is_Full == 1){				// Проверяем что сообщение содержит 
+				HAL_UART_Transmit(&huart2, &Data[0], 20, 0xFFFF);
+				if (Data[0]== 0x43 && Data[3]== 0x66 && Data[4]== 0x3A){
+					Data_Config[0] = (Data[5] - 0x30)*100 + (Data[6] - 0x30)*10 + (Data[7] - 0x30);
+					Data_Config[1] = (Data[9] - 0x30)*10000 + (Data[10] - 0x30)*1000 + (Data[11] - 0x30)*100 + (Data[12] - 0x30)*10 + (Data[13] - 0x30);
+					Data_Config[2] = Data[15] - 0x30;
+					Data_Config[3] = (Data[17] - 0x30)*10 + (Data[18] - 0x30);
+					for (uint8_t i = 0; i<=19; i++){
+						Data[i] = 0;
+					}
+					
+				FLASH_EraseInitTypeDef EraseInitStruct;
+				uint32_t PAGEError = 0;
+				EraseInitStruct.TypeErase   =  TYPEERASE_PAGES;
+				EraseInitStruct.PageAddress = 0x08003F00;
+				EraseInitStruct.NbPages     = 1;//(0x08003F40 - 0x08003F00) / FLASH_PAGE_SIZE;					
+									
+				flash_ok = HAL_ERROR;	
+				flash_ok = HAL_FLASH_Unlock();//Делаем память открытой
+				flash_ok = HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError);						
+				flash_ok = HAL_FLASH_Lock();//Закрываем память
+		 
+				if (flash_read(0x08003F00) == 0){
+					size_UART = sprintf((char *)Data_temp,"\n\rErase OK\n\r");
+					HAL_UART_Transmit(&huart2, Data_temp, size_UART, 0xFFFF);	
+				}
+				if (flash_read(0x08003F00) != 0){
+					size_UART = sprintf((char *)Data_temp,"\n\rErase BAD!\n\r");
+					HAL_UART_Transmit(&huart2, Data_temp, size_UART, 0xFFFF);	
+				} 	 
+					flash_ok = HAL_FLASH_Unlock();//Делаем память открытой				
+					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003F00, Data_Config[0]);
+					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003F10, Data_Config[1]);
+					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003F20, Data_Config[2]);
+					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003F30, Data_Config[3]);			
+					flash_ok = HAL_FLASH_Lock();//Закрываем память
+					size_UART = sprintf((char *)Data_temp,"\n\rConf OK, reboot\n\r");
+					HAL_UART_Transmit(&huart2, Data_temp, size_UART, 0xFFFF);			
+				}
+				Flag_Start_colect_config_is_Full = 0;
+				for (uint8_t i = 0; i<=19; i++){
+					Data[i] = 0;
+				}
+			}
+
+		
   }
 }
 
@@ -540,35 +521,6 @@ static void MX_I2C1_Init(void)
 
 }
 
-/* SPI1 init function */
-//static void MX_SPI1_Init(void)
-//{
-
-//  /* SPI1 parameter configuration*/
-//  hspi1.Instance = SPI1;
-//  hspi1.Init.Mode = SPI_MODE_MASTER;
-//  hspi1.Init.Direction = SPI_DIRECTION_2LINES;
-//  hspi1.Init.DataSize = SPI_DATASIZE_8BIT;
-//  hspi1.Init.CLKPolarity = SPI_POLARITY_LOW;
-//  hspi1.Init.CLKPhase = SPI_PHASE_1EDGE;
-//  hspi1.Init.NSS = SPI_NSS_SOFT;
-//  hspi1.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_8;
-//  hspi1.Init.FirstBit = SPI_FIRSTBIT_MSB;
-//  hspi1.Init.TIMode = SPI_TIMODE_DISABLE;
-//  hspi1.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
-//  hspi1.Init.CRCPolynomial = 7;
-////	CSN1;
-////	CE0;	
-//	
-//  if (HAL_SPI_Init(&hspi1) != HAL_OK)
-//  {
-//    _Error_Handler(__FILE__, __LINE__);
-//  }
-
-//}
-
-
-
 
 /* TIM2 init function */
 static void MX_TIM2_Init(void)
@@ -605,12 +557,17 @@ static void MX_TIM2_Init(void)
 /* USART2 init function */
 static void MX_USART2_UART_Init(void)
 {
-
   huart2.Instance = USART2;
-  huart2.Init.BaudRate = 9600;
+  huart2.Init.BaudRate = flash_read(0x08003F10);//Data_Config[1];
   huart2.Init.WordLength = UART_WORDLENGTH_8B;
-  huart2.Init.StopBits = UART_STOPBITS_1;
-  huart2.Init.Parity = UART_PARITY_NONE;
+			if (flash_read(0x08003F20) == 0){huart2.Init.Parity = UART_PARITY_NONE;}
+			if (flash_read(0x08003F20) == 1){huart2.Init.Parity = UART_PARITY_ODD;}
+			if (flash_read(0x08003F20) == 2){huart2.Init.Parity = UART_PARITY_EVEN;}
+			if (flash_read(0x08003F30) == 1){huart2.Init.StopBits = UART_STOPBITS_1;}
+			if (flash_read(0x08003F30) == 15){huart2.Init.StopBits = UART_STOPBITS_1_5;}
+			if (flash_read(0x08003F30) == 2){huart2.Init.StopBits = UART_STOPBITS_2;}									
+//  huart2.Init.StopBits = UART_STOPBITS_1;
+//  huart2.Init.Parity = UART_PARITY_NONE;
   huart2.Init.Mode = UART_MODE_TX_RX;
   huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
   huart2.Init.OverSampling = UART_OVERSAMPLING_16;

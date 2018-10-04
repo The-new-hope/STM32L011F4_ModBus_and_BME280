@@ -22,6 +22,7 @@
 666_l011f4_only_hal\system_stm32l0xx.o: ../Drivers/STM32L0xx_HAL_Driver/Inc/stm32l0xx_hal_cortex.h
 666_l011f4_only_hal\system_stm32l0xx.o: ../Drivers/STM32L0xx_HAL_Driver/Inc/stm32l0xx_hal_flash.h
 666_l011f4_only_hal\system_stm32l0xx.o: ../Drivers/STM32L0xx_HAL_Driver/Inc/stm32l0xx_hal_flash_ex.h
+666_l011f4_only_hal\system_stm32l0xx.o: ../Drivers/STM32L0xx_HAL_Driver/Inc/stm32l0xx_hal.h
 666_l011f4_only_hal\system_stm32l0xx.o: ../Drivers/STM32L0xx_HAL_Driver/Inc/stm32l0xx_hal_flash_ramfunc.h
 666_l011f4_only_hal\system_stm32l0xx.o: ../Drivers/STM32L0xx_HAL_Driver/Inc/stm32l0xx_hal_i2c.h
 666_l011f4_only_hal\system_stm32l0xx.o: ../Drivers/STM32L0xx_HAL_Driver/Inc/stm32l0xx_hal_i2c_ex.h
