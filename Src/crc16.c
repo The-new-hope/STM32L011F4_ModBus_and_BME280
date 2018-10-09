@@ -58,18 +58,3 @@ unsigned int calculate_Crc16(unsigned char* buff, unsigned int length)
 
 
 
-
-
-//uint8_t test = 10;
-//uint8_t resu = 20;
-//uint8_t a, b, x, y=0;
-//void SP(uint8_t a, uint8_t b, uint8_t *x, uint8_t *y)
-//{
-//*x=a+b;
-//*y=a*b;
-//}
-
-
-
-
-

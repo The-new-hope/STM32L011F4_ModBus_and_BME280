@@ -122,62 +122,6 @@ void HAL_I2C_MspDeInit(I2C_HandleTypeDef* hi2c)
 
 }
 
-//void HAL_SPI_MspInit(SPI_HandleTypeDef* hspi)
-//{
-
-//  GPIO_InitTypeDef GPIO_InitStruct;
-//  if(hspi->Instance==SPI1)
-//  {
-//  /* USER CODE BEGIN SPI1_MspInit 0 */
-
-//  /* USER CODE END SPI1_MspInit 0 */
-//    /* Peripheral clock enable */
-//    __HAL_RCC_SPI1_CLK_ENABLE();
-//  
-//    /**SPI1 GPIO Configuration    
-//    PA5     ------> SPI1_SCK
-//    PA6     ------> SPI1_MISO
-//    PA7     ------> SPI1_MOSI 
-//    */
-//    GPIO_InitStruct.Pin = SPI_PIN_SCK|SPI_PIN_MISO|SPI_PIN_MOSI;
-//    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
-//    GPIO_InitStruct.Pull = GPIO_NOPULL;
-//    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
-//    GPIO_InitStruct.Alternate = GPIO_AF0_SPI1;
-//    HAL_GPIO_Init(SPI_GPIO, &GPIO_InitStruct);
-
-//  /* USER CODE BEGIN SPI1_MspInit 1 */
-
-//  /* USER CODE END SPI1_MspInit 1 */
-//  }
-
-//}
-
-//void HAL_SPI_MspDeInit(SPI_HandleTypeDef* hspi)
-//{
-
-//  if(hspi->Instance==SPI1)
-//  {
-//  /* USER CODE BEGIN SPI1_MspDeInit 0 */
-
-//  /* USER CODE END SPI1_MspDeInit 0 */
-//    /* Peripheral clock disable */
-//    __HAL_RCC_SPI1_CLK_DISABLE();
-//  
-//    /**SPI1 GPIO Configuration    
-//    SPI_PIN_SCK     ------> SPI1_SCK
-//    SPI_PIN_MISO     ------> SPI1_MISO
-//    PA7     ------> SPI1_MOSI 
-//    */
-//    HAL_GPIO_DeInit(SPI_GPIO, SPI_PIN_SCK|SPI_PIN_MISO|SPI_PIN_MOSI);
-
-//  /* USER CODE BEGIN SPI1_MspDeInit 1 */
-
-//  /* USER CODE END SPI1_MspDeInit 1 */
-//  }
-
-//}
-
 void HAL_TIM_Base_MspInit(TIM_HandleTypeDef* htim_base)
 {
 
