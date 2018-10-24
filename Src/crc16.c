@@ -55,6 +55,19 @@ unsigned int calculate_Crc16(unsigned char* buff, unsigned int length)
   return crc;
 }
 
-
+typedef enum Myenum
+{
+  BaudRate_600 = 600,
+  BaudRate_1200 = 1200,
+  BaudRate_2400 = 2400,    
+  BaudRate_4800 = 4800,    
+  BaudRate_9600 = 9600,    
+  BaudRate_14400 = 14400,
+	BaudRate_19200 = 19200,
+	BaudRate_28800 = 28800,
+	BaudRate_38400 = 38400,
+	BaudRate_56000 = 56000,	
+	BaudRate_57600 = 57600
+} MyEnumPtr;
 
 
