@@ -9,17 +9,9 @@
 #include "BMP280/bmp280.h"	// Description of registers and commands BMP280
 
 
-#define TIME_SENDING		50 // Frequnce of sending data = 1/10 sek // 50 = 5 sek
+#define TIME_SENDING		50 // Частота чтения данных из датчика = 1/10 sek // 50 = 5 sek
 
-#define TIME_ASK_RAIN		10 // Frequnce of flash led = 1/10 sek // 10 = 1 sek
-
-//#define Power_Level		PWR_PVDLEVEL_3 	// PWR_PVDLEVEL_0 = 1,9v;
-//																			// PWR_PVDLEVEL_1 = 2,1v;
-//																			// PWR_PVDLEVEL_2 = 2,3v;
-//																			// PWR_PVDLEVEL_3 = 2,5v;																			
-//																			// PWR_PVDLEVEL_4 = 2,7v;
-//																			// PWR_PVDLEVEL_5 = 2,9v;
-//																			// PWR_PVDLEVEL_6 = 3,1v;
+#define TIME_ASK_RAIN		10 // Частота опроса датчика дождя = 1/10 sek // 10 = 1 sek
 																			
 #define OWN_ADDRESS_MODBUS	0xDC // Own address in HEX
 #define BaudRate_MODBUS	9600 // Default baud rate: 600, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 56000, 57600
@@ -33,9 +25,6 @@
 #define I2C_SCL		GPIO_PIN_9
 
 //See also settings have in file stm32l0xx_hal.c
-
-
-
 
 
 

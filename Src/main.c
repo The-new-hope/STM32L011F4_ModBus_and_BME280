@@ -10,40 +10,33 @@ HAL_StatusTypeDef	flash_ok = HAL_ERROR;
 /* Private variables ---------------------------------------------------------*/
 float pressure, temperature, humidity;
 
-
 uint16_t result = 0;
 uint8_t buffer_TX[15]; ////
 //uint8_t size_UART = 0;
 
-uint8_t Tcounter = 0;
-uint8_t Tcounter1 = 0;
+uint8_t Tcounter = 0;															//	Счетчик  для работы с таймерами
+uint8_t Tcounter1 = 0;														//	Счетчик  для работы с таймерами
 
-uint8_t Buff_config[12]; 													//	Буфер для приема данных конфигурации
 uint8_t Data[20];																	//	Буфер для приема данных от мастера
-uint8_t Data_temp[20];
 uint16_t Data_Config[4];													//	Буфер для записи конфигурации во флеш
 uint8_t str=0;																		//	Буфер для работы UART
 uint8_t Data_ERROR[5];														//	Буфер для ответа с ошибкой
 
 uint8_t ID_Device;																//	ID устройства
 uint8_t Flag_Start_colect = 0;										//	Флаг, разрешающий сбор данных в буфер
-//uint8_t Flag_Start_colect_config = 0;							//	Флаг, разрешающий сбор данных корфигурации в буфер
-//uint8_t Flag_Start_colect_config_is_Full = 0;			//	Флаг буфер конфигурации полный 
 uint8_t Flag_Receive_conf = 0;										// Флаг, что мы получили конфигурацию
 uint8_t Flag_Receive_data = 0;										// Флаг, что мы получили данные
-
-uint8_t Flag_Receive_valid = 0;										//	Флаг CRC данных ок
-
-//uint8_t Flag_Receive_conf_valid = 0;							//	Флаг CRC конфигурации ок
+uint8_t Flag_Receive_valid = 0;										//	Флаг CRC ок
 uint8_t Flag_Receive_Buff_is_Full = 0;						//	Флаг буфер данных полный
 uint8_t count = 0;																//	Счетчик  для работы UART	
-//uint8_t count1 = 0;																//	Счетчик  для работы UART
 uint8_t size_count = 0;	
 	
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 void WriteDefaultConf(void);
+void ReadWeatherData(void);
+void ClearDataBufer(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_I2C1_Init(void);
@@ -83,8 +76,6 @@ void TIM2_IRQHandler(void)
 //	buffer_TX[4] |=(1<<0);	
 //}
 
-
-
 int main(void)
 {
   /* MCU Configuration----------------------------------------------------------*/
@@ -108,9 +99,6 @@ int main(void)
 //  HAL_PWR_ConfigPVD(&sConfigPVD);	
 //	
 //  HAL_PWR_EnablePVD();	
-	
-
-
 	
 //##########################################################################################
 	if (flash_read(0x08003FA0) == 0){																											//## Запись конфигурации по умолчанию
@@ -139,11 +127,11 @@ int main(void)
 			uint16_t rezHumidity_uint =      	(uint16_t)(humidity * 10);
 			int16_t rezTemperature_int = 			(int16_t)(temperature * 10);			
 			uint16_t rezAtmPressure_uint = 		(uint16_t)pressure * 0.75;
-			if (pressure == 0){buffer_TX[3] |=(1<<0);} 													// Проверка датчика. Если давление == 0, ставим бит датчик неисправен
+			if (pressure == 0){buffer_TX[3] |=(1<<0);} 																					// Проверка датчика. Если давление == 0, ставим бит датчик неисправен
 		
 			buffer_TX[0]=ID_Device;
 			buffer_TX[1]=0x03;
-			buffer_TX[2]=0x10;
+			buffer_TX[2]=0x0A;
 			buffer_TX[3]=0;
 //			buffer_TX[4]=0;
 			buffer_TX[5]=rezTemperature_int >> 8;		// старший
@@ -180,18 +168,6 @@ int main(void)
 
 //  ******************************************************************************		
 		if(huart2.RxXferCount==0){																										//
-//			if (str == ID_Device){																																	// Проверяем первый байт сообщения. Если нам - (0xDC) то
-//				Flag_Start_colect_config = 1;			
-//			}
-//			if (Flag_Start_colect_config == 1){																											// Наполняем буфер
-//				Buff_config[count1] = str;			
-//				count1 ++;
-//			}	
-//			if (count1 == 12){
-//				Flag_Start_colect_config_is_Full = 1;
-//				Flag_Start_colect_config = 0;
-//				count1 = 0;
-//			}	
 //  ******************************************************************************			
 			if (str == ID_Device){																																	// Проверяем кому адресовано сообщение. Если нам - (0xDC) то
 				Flag_Start_colect = 1;																																// ставим флаг разрешения сбора данных
@@ -202,8 +178,9 @@ int main(void)
 			}																																												//
 			if (count == 2 && str == 0x10){																													// Если второй символ принимаемых данных - функция 16 - то
 				size_count = 12;																																			// значит принимаем конфигурацию и ставим
-				Flag_Receive_conf = 1;																																// флаг что это конфигурация
-			}else{																																									// иначе
+				Flag_Receive_conf = 1;																																// флаг что это конфигурация	
+			}
+			if (count == 2 && str != 0x10){																													// иначе
 				size_count = 8;																																				// принимаем данные и ставим
 				Flag_Receive_data = 1;																																// флаг что это данные
 			}																																												//
@@ -222,7 +199,7 @@ int main(void)
 					result = calculate_Crc16(Data, size_count);																					// 
 					uint8_t q = result & 0xFF;																													//
 					uint8_t w = result >> 8;																														//
-				if ((Flag_Receive_data == 1 && Data[6] == q & Data[7] == w)|(Flag_Receive_conf == 1 && Data[10] == q & Data[11] == w)){														// Если CRC ок - ставим флаг что CRC валидный
+				if ((Flag_Receive_data == 1 && Data[6] == q && Data[7] == w)||(Flag_Receive_conf == 1 && Data[10] == q && Data[11] == w)){// Если CRC ок - ставим флаг что CRC валидный
 					Flag_Receive_valid = 1;																															//					
 				} else {																																							//
 					Flag_Receive_Buff_is_Full = 0;																											// Если иначе - очищаем буфер и флаги
@@ -242,154 +219,168 @@ int main(void)
 					Data_ERROR[3] = result & 0xFF;																												//
 					Data_ERROR[4] = result >> 8;																													//
 					HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																		//
-					Flag_Receive_Buff_is_Full = 0;																											  // очищаем буфер и флаги
-					Flag_Receive_valid = 0;																																//
-					Flag_Receive_data = 0;																																//
-					Flag_Receive_conf = 0;																																//
-					for (uint8_t i = 0; i<=19; i++){																											//
-						Data[i] = 0;																																				//
-					}																																											//		
+							ClearDataBufer();																																	//	 очищаем буфер и флаги
 				}																																												//
 			
-				if (Data[2] != 0x00 && Data[3] != 0x00){																								// Проверяем что сообщение содержит address 0000
+				if ((Flag_Receive_data == 1) && (Data[2] != 0x00 || Data[3] != 0x00)){									// Проверяем что сообщение содержит address 0000
 					Data_ERROR[1] = Data[1]|0x80;																													// если нет - то формируем массив с ответом-исключением
 					Data_ERROR[2] = 0x02;																																	//
 					result = calculate_Crc16(Data_ERROR, 3);																							// и отправляем ответ исключение
 					Data_ERROR[3] = result & 0xFF;																												//
 					Data_ERROR[4] = result >> 8;																													//
 					HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																		//
-					Flag_Receive_Buff_is_Full = 0;																											  // очищаем буфер и флаги
-					Flag_Receive_valid = 0;																																//
-					Flag_Receive_data = 0;																																//
-					Flag_Receive_conf = 0;																																//
-					for (uint8_t i = 0; i<=19; i++){																											//
-						Data[i] = 0;																																				//
-					}																																											//
+							ClearDataBufer();																																	//	 очищаем буфер и флаги
 				}																																												//
 
-				if (Data[4] != 0x00 && Data[5] != 0x05){																								// Проверяем что сообщение содержит data 0005
+				if ((Flag_Receive_data == 1) && (Data[4] != 0x00 || Data[5] != 0x05)){									// Проверяем что сообщение содержит data 0005
 					Data_ERROR[1] = Data[1]|0x80;																													// если нет - то формируем массив с ответом-исключением
 					Data_ERROR[2] = 0x03;																																	//
 					result = calculate_Crc16(Data_ERROR, 3);																							// и отправляем ответ исключение
 					Data_ERROR[3] = result & 0xFF;																												//
 					Data_ERROR[4] = result >> 8;																													//
 					HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																		//
-					Flag_Receive_Buff_is_Full = 0;																											  // очищаем буфер и флаги
-					Flag_Receive_valid = 0;																																//
-					Flag_Receive_data = 0;																																//
-					Flag_Receive_conf = 0;																																//
-					for (uint8_t i = 0; i<=19; i++){																											//
-						Data[i] = 0;																																				//
-					}																																											//				
+							ClearDataBufer();																																	//	 очищаем буфер и флаги
 				}																																												//	
 			
-				if (Data[1] == 0x03 && Data[2] == 0 && Data[3] == 0 && Data[5] == 0x05){								// Если принятая функция отвечает требованиям и данные валидны -
+				if (Flag_Receive_data == 1 && Data[1] == 0x03 && Data[2] == 0 && Data[3] == 0 && Data[5] == 0x05){// Если принятая функция отвечает требованиям -
 					HAL_UART_Transmit(&huart2, buffer_TX, 15, 0xFFFF);																		// отправляем ответ с данными
-					Flag_Receive_Buff_is_Full = 0;																												// очищаем буфер и флаги
-					Flag_Receive_valid = 0;																																//
-					Flag_Receive_data = 0;																																//
-					Flag_Receive_conf = 0;																																//
-					for (uint8_t i = 0; i<=19; i++){																											//
-						Data[i] = 0;																																				//
-					}																																											//
+							ClearDataBufer();																																	//	 очищаем буфер и флаги
 				}																																												//			
 			}																																													//	
 //  *********************************************************************************************
-//  *********************************************************************************************Блок обработки и записи полученной конфигурации 			
-			if (Flag_Receive_valid == 1 && Flag_Receive_conf == 1){																		// 
-				if (Data[2] != 0x00 && Data[3] != 0x00){																								// Проверяем что сообщение содержит address 0000
+//  ********************************************************************************************* Блок обработки и записи полученной конфигурации 			
+			if (Flag_Receive_valid == 1 && Flag_Receive_conf == 1){																		// 			
+				if (Data[2] != 0x00 || Data[3] != 0x00){																								// Проверяем что сообщение содержит address 0000
 					Data_ERROR[1] = Data[1]|0x80;																													// если нет - то формируем массив с ответом-исключением
 					Data_ERROR[2] = 0x02;																																	//
 					result = calculate_Crc16(Data_ERROR, 3);																							// и отправляем ответ исключение
 					Data_ERROR[3] = result & 0xFF;																												//
 					Data_ERROR[4] = result >> 8;																													//
-					HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																		//
-					Flag_Receive_Buff_is_Full = 0;																											  // очищаем буфер и флаги
-					Flag_Receive_valid = 0;
-					Flag_Receive_data = 0;
-					Flag_Receive_conf = 0;
-					for (uint8_t i = 0; i<=19; i++){
-						Data[i] = 0;
-					}				
-				}	
-				
-				if (Data[4] != 0x00 && Data[5] != 0x02){																								// Проверяем что сообщение содержит data 0002
+					HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																		// 
+							ClearDataBufer();																																	// очищаем буфер и флаги
+				}																																												//
+//  ********************************************************************************************//				
+				if ((Flag_Receive_conf == 1) && (Data[4] != 0x00 || Data[5] != 0x02)){									// Проверяем что сообщение содержит data 0002
 					Data_ERROR[1] = Data[1]|0x80;																													// если нет - то формируем массив с ответом-исключением
 					Data_ERROR[2] = 0x03;																																	//
 					result = calculate_Crc16(Data_ERROR, 3);																							// и отправляем ответ исключение
 					Data_ERROR[3] = result & 0xFF;																												//
 					Data_ERROR[4] = result >> 8;																													//
 					HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																		//
-					Flag_Receive_Buff_is_Full = 0;																											  // очищаем буфер и флаги
-					Flag_Receive_valid = 0;																																//
-					Flag_Receive_data = 0;
-					Flag_Receive_conf = 0;
-					for (uint8_t i = 0; i<=19; i++){																											//
-						Data[i] = 0;																																				//
-					}				
-				}				
-				
-				
-				if (Data[6] != 0 && Data[6] <= 247){																									// Проверяем что ID содержит корректное значение
-					Data_Config[0] = Data[6];
-					
-					Data_Config[1] = (Buff_config[9] - 0x30)*10000 + (Buff_config[10] - 0x30)*1000 + (Buff_config[11] - 0x30)*100 + (Buff_config[11] - 0x30)*10 + (Buff_config[11] - 0x30);
-					Data_Config[2] = Buff_config[11] - 0x30;																						//
-					Data_Config[3] = (Buff_config[11] - 0x30)*10 + (Buff_config[11] - 0x30);						//
-					
-					FLASH_EraseInitTypeDef EraseInitStruct;																							//
-					uint32_t PAGEError = 0;																															//
-					EraseInitStruct.TypeErase   =  TYPEERASE_PAGES;																			//
-					EraseInitStruct.PageAddress = 0x08003FA0;																						//
-					EraseInitStruct.NbPages     = 1;																										//			
-									
-					flash_ok = HAL_ERROR;																																//
-					flash_ok = HAL_FLASH_Unlock();																											// Делаем память открытой
-					flash_ok = HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError);													// Стираем память
-					flash_ok = HAL_FLASH_Lock();																												// Закрываем память
-		 
-					if (flash_read(0x08003FA0) == 0){																										// Проверяем что стёрлось
-//						size_UART = sprintf((char *)Data_temp,"\n\rErase OK\n\r");												//
-//						HAL_UART_Transmit(&huart2, Data_temp, size_UART, 0xFFFF);													//
-					}																																										//
-					if (flash_read(0x08003F00) != 0){																										//
-//						size_UART = sprintf((char *)Data_temp,"\n\rErase BAD!\n\r");											//
-//						HAL_UART_Transmit(&huart2, Data_temp, size_UART, 0xFFFF);													//
-					} 	 																																								//
-					flash_ok = HAL_FLASH_Unlock();																											// Делаем память открытой				
-					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA0, Data_Config[0]);					// Пишем
-					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FB0, Data_Config[1]);					//
-					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FC0, Data_Config[2]);					//
-					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FD0, Data_Config[3]);					//
-					flash_ok = HAL_FLASH_Lock();																												// Закрываем память
-					MX_USART2_UART_Init();																															//
-				}																																											//																																										//
-			}																																												//
-//  ******************************************************************************************
-//  ******************************************************************************************		
-		if (Tcounter1 >= TIME_SENDING) {																													// Блок обновления погодных данных
-			Tcounter1 = 0;																																					// 
-			while (!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)) {								// Читаем новые данные
-				HAL_Delay(2000);																																			// 
-				}																																											//
-			uint16_t rezAtmPressureGPa_uint =  (uint16_t)pressure;																	//
-			uint16_t rezHumidity_uint =        (uint16_t)(humidity * 10);														//
-			int16_t rezTemperature_int = (int16_t)(temperature * 10);																//
-			uint16_t rezAtmPressure_uint = (uint16_t)pressure * 0.75;																//	
-			if (pressure == 0){buffer_TX[3] |=(1<<0);} 																							// Проверка датчика. Если давление == 0, ставим бит датчик неисправен				
-			buffer_TX[5]=rezTemperature_int >> 8;		//MSB (Most Significant Bit) старший						// Наполняем буфер
-			buffer_TX[6]=rezTemperature_int & 0xFF;	//LSB (Least Significant Bit) младший						//
-			buffer_TX[7]=rezHumidity_uint >> 8;																											//
-			buffer_TX[8]=rezHumidity_uint & 0xFF;																										//
-			buffer_TX[9]=rezAtmPressure_uint >> 8;																									//
-			buffer_TX[10]=rezAtmPressure_uint & 0xFF;																								//
-			buffer_TX[11]=rezAtmPressureGPa_uint >> 8;																							//
-			buffer_TX[12]=rezAtmPressureGPa_uint & 0xFF;																						//
-				result = calculate_Crc16(buffer_TX, 13);																							//
-				buffer_TX[13] = result & 0xFF;																												//
-				buffer_TX[14] = result >> 8;																													//
-		}		    																																									//
-//  ******************************************************************************************	
+					ClearDataBufer();																																			// очищаем буфер и флаги
+				}																																												//
+//  ********************************************************************************************//				
+				if ((Flag_Receive_conf == 1) && (Data[6] == 0x00 || Data[6] >= 247)){										// Проверяем что ID содержит корректное значение
+							Data_ERROR[1] = Data[1]|0x80;																											// если нет - то формируем массив с ответом-исключением
+							Data_ERROR[2] = 0x04;																															//
+							result = calculate_Crc16(Data_ERROR, 3);																					// и отправляем ответ исключение
+							Data_ERROR[3] = result & 0xFF;																										//
+							Data_ERROR[4] = result >> 8;																											//
+							HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																//
+							ClearDataBufer();																																	// очищаем буфер и флаги
+				}																																												//
+//  ********************************************************************************************//				
+				if ((Flag_Receive_conf == 1) && (Data[7] == 0x00 || Data[7] > 11)){											// Проверяем что BaudRate содержит корректное значение
+							Data_ERROR[1] = Data[1]|0x80;																											// если нет - то формируем массив с ответом-исключением
+							Data_ERROR[2] = 0x04;																															//
+							result = calculate_Crc16(Data_ERROR, 3);																					// и отправляем ответ исключение
+							Data_ERROR[3] = result & 0xFF;																										//
+							Data_ERROR[4] = result >> 8;																											//
+							HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																//
+							ClearDataBufer();																																	// очищаем буфер и флаги
+				}																																												//				
+//  ********************************************************************************************//				
+				if ((Flag_Receive_conf == 1) && (Data[8] > 2)){																					// Проверяем что Parity содержит корректное значение
+							Data_ERROR[1] = Data[1]|0x80;																											// если нет - то формируем массив с ответом-исключением
+							Data_ERROR[2] = 0x04;																															//
+							result = calculate_Crc16(Data_ERROR, 3);																					// и отправляем ответ исключение
+							Data_ERROR[3] = result & 0xFF;																										//
+							Data_ERROR[4] = result >> 8;																											//
+							HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																//
+							ClearDataBufer();																																	// очищаем буфер и флаги
+				}																																												//	
+//  ********************************************************************************************//				
+				if ((Flag_Receive_conf == 1) && (Data[9] != 1) && (Data[9] != 15) && (Data[9] != 2)){		// Проверяем что StpBit содержит корректное значение
+							Data_ERROR[1] = Data[1]|0x80;																											// если нет - то формируем массив с ответом-исключением
+							Data_ERROR[2] = 0x04;																															//
+							result = calculate_Crc16(Data_ERROR, 3);																					// и отправляем ответ исключение
+							Data_ERROR[3] = result & 0xFF;																										//
+							Data_ERROR[4] = result >> 8;																											//
+							HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																//
+							ClearDataBufer();																																	// очищаем буфер и флаги
+				}																																												//
+//  ********************************************************************************************//				
+				if (Flag_Receive_conf == 1){																														// Готовим массив на запись
+					Data_Config[0] = Data[6];																															// Data_Config[0] 
+					switch(Data[7]){																																			// 
+						case 1: Data_Config[1] = 600; break;																								// Data_Config[1]
+						case 2: Data_Config[1] = 1200; break; 																							// 
+						case 3: Data_Config[1] = 2400; break;    																						// 
+						case 4: Data_Config[1] = 4800; break;   																						//  
+						case 5: Data_Config[1] = 9600; break;  																							// 
+						case 6: Data_Config[1] = 14400; break;																							// 
+						case 7: Data_Config[1] = 19200; break; 																							// 
+						case 8: Data_Config[1] = 28800; break;  																						//   
+						case 9: Data_Config[1] = 38400; break;   																						//  
+						case 10: Data_Config[1] = 56000; break;																							// 
+						case 11: Data_Config[1] = 57600; break;																							// 
+					}																																											//
+					switch(Data[8]){																																			// 
+						case 0: Data_Config[2] = 0; break;																									// Data_Config[2]
+						case 1: Data_Config[2] = 1; break; 																									// 
+						case 2: Data_Config[2] = 2; break;    																							// 
+					}																																											//
+					switch(Data[9]){																																			// 
+						case 0: Data_Config[3] = 1; break;																									// Data_Config[3]
+						case 1: Data_Config[3] = 2; break; 																									// 
+						case 2: Data_Config[3] = 15; break;    																							// 
+					}																																											//
+					FLASH_EraseInitTypeDef EraseInitStruct;																								//
+					uint32_t PAGEError = 0;																																//
+					EraseInitStruct.TypeErase   =  TYPEERASE_PAGES;																				//
+					EraseInitStruct.PageAddress = 0x08003FA0;																							//
+					EraseInitStruct.NbPages     = 1;																											//												
+					flash_ok = HAL_ERROR;																																	//
+					flash_ok = HAL_FLASH_Unlock();																												// Делаем память открытой
+					flash_ok = HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError);														// Стираем память
+					flash_ok = HAL_FLASH_Lock();																													// Закрываем память					
+					if (flash_read(0x08003FA0) != 0){																											// Проверяем что стёрлось
+						Data_ERROR[1] = Data[1]|0x80;																												// если нет - то формируем массив с ответом-исключением
+						Data_ERROR[2] = 0x04;																																//
+						result = calculate_Crc16(Data_ERROR, 3);																						// и отправляем ответ исключение
+						Data_ERROR[3] = result & 0xFF;																											//
+						Data_ERROR[4] = result >> 8;																												//
+						HAL_UART_Transmit(&huart2, Data_ERROR, 5, 0xFFFF);																	//
+																															//
+						ClearDataBufer();																																			//
+					} 	 																																									//				
+					flash_ok = HAL_FLASH_Unlock();																												// Делаем память открытой				
+					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA0, Data_Config[0]);						// Пишем
+					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FB0, Data_Config[1]);						//
+					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FC0, Data_Config[2]);						//
+					flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FD0, Data_Config[3]);						//
+					flash_ok = HAL_FLASH_Lock();																													// Закрываем память				
+					buffer_TX[1] = 0x10;																																	// формируем массив с ответом
+					buffer_TX[2] = 0x00;																																	//
+					buffer_TX[3] = 0x00;																																	//
+					buffer_TX[4] = 0x00;																																	//
+					buffer_TX[5] = 0x02;																																	//
+					result = calculate_Crc16(buffer_TX, 6);																								// 
+					uint8_t q = result & 0xFF;																														//
+					uint8_t w = result >> 8;																															//
+					buffer_TX[6] = q;																																			//
+					buffer_TX[7] = w;																																			//				
+					HAL_UART_Transmit(&huart2, buffer_TX, 8, 0xFFFF);																			// отправляем ответ с данными
+					NVIC_SystemReset();																																		// сбрасываем контроллер		
+				}																																												//	
+			}																																													//
+//  ********************************************************************************************//
+//  ********************************************************************************************//		
+		if (Tcounter1 >= TIME_SENDING) {																														// Блок обновления погодных данных
+			Tcounter1 = 0;																																						// 
+			ReadWeatherData();																																				//
+		}		    																																										//
+//  ********************************************************************************************//	
   }
 }
 
@@ -518,8 +509,8 @@ void MX_NVIC_Init(void)
 	HAL_NVIC_SetPriority(USART2_IRQn, 0, 0);
 	HAL_NVIC_EnableIRQ(USART2_IRQn);	
 	
-	HAL_NVIC_SetPriority(PVD_IRQn, 0, 0);
-	HAL_NVIC_EnableIRQ(PVD_IRQn);	
+//	HAL_NVIC_SetPriority(PVD_IRQn, 0, 0);
+//	HAL_NVIC_EnableIRQ(PVD_IRQn);	
 }
 
 
@@ -663,22 +654,70 @@ static void MX_GPIO_Init(void)
 //##########################################################################################
 void WriteDefaultConf(void)																															//## Функция записи конфигурации по умолчанию
 {																																												//##
+			FLASH_EraseInitTypeDef EraseInitStruct;																						//##
+			uint32_t PAGEError = 0;																														//##
+			EraseInitStruct.TypeErase   =  TYPEERASE_PAGES;																		//##
+			EraseInitStruct.PageAddress = 0x08003FA0;																					//##
+			EraseInitStruct.NbPages     = 1;																									//##												
+			flash_ok = HAL_ERROR;																															//##
+			flash_ok = HAL_FLASH_Unlock();																										//## 
+			flash_ok = HAL_FLASHEx_Erase(&EraseInitStruct, &PAGEError);												//## Стираем память
+			flash_ok = HAL_FLASH_Lock();																											//## 
 			flash_ok = HAL_ERROR;																															//##
 			while(flash_ok != HAL_OK){														//Делаем память открытой		//##
 				flash_ok = HAL_FLASH_Unlock();																									//##
 			}																																									//##
 			flash_ok = HAL_ERROR;																															//##
 			while(flash_ok != HAL_OK){																												//##
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA0, OWN_ADDRESS_MODBUS);	//##
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FB0, BaudRate_MODBUS);		//##
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FC0, Parity_MODBUS);			//##
-				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FD0, StpBit_MODBUS);			//##
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA0, OWN_ADDRESS_MODBUS);	//##				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA4, OWN_ADDRESS_MODBUS);	//##			
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA0+0x10, BaudRate_MODBUS);		//##
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA0+0x20, Parity_MODBUS);			//##
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA0+0x30, StpBit_MODBUS);			//##
+				
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA0+0x04, OWN_ADDRESS_MODBUS);	//##				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA4, OWN_ADDRESS_MODBUS);	//##			
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA0+0x10+0x04, BaudRate_MODBUS);		//##
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA0+0x20+0x04, Parity_MODBUS);			//##
+				flash_ok = HAL_FLASH_Program(TYPEPROGRAM_WORD, 0x08003FA0+0x30+0x04, StpBit_MODBUS);			//##				
+				
 			}																																									//##
 			while(flash_ok != HAL_OK){															//Закрываем память				//##
 				flash_ok = HAL_FLASH_Lock();																										//##
 			}																																									//##	
 }																																												//##
 //##########################################################################################
+//  **************************************************************************************//
+void ReadWeatherData(void)																																// Функция чтения данных с датчика
+{																																													// и наполнение буфера buffer_TX[]
+			while (!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)) {						// Читаем новые данные
+				HAL_Delay(2000);																																	// 
+				}																																									//
+			uint16_t rezAtmPressureGPa_uint =  (uint16_t)pressure;															//
+			uint16_t rezHumidity_uint =        (uint16_t)(humidity * 10);												//
+			int16_t rezTemperature_int = (int16_t)(temperature * 10);														//
+			uint16_t rezAtmPressure_uint = (uint16_t)pressure * 0.75;														//	
+			if (pressure == 0){buffer_TX[3] |=(1<<0);} 																					// Проверка датчика. Если давление == 0, ставим бит датчик неисправен				
+			buffer_TX[5]=rezTemperature_int >> 8;		//MSB (Most Significant Bit) старший				// Наполняем буфер
+			buffer_TX[6]=rezTemperature_int & 0xFF;	//LSB (Least Significant Bit) младший				//
+			buffer_TX[7]=rezHumidity_uint >> 8;																									//
+			buffer_TX[8]=rezHumidity_uint & 0xFF;																								//
+			buffer_TX[9]=rezAtmPressure_uint >> 8;																							//
+			buffer_TX[10]=rezAtmPressure_uint & 0xFF;																						//
+			buffer_TX[11]=rezAtmPressureGPa_uint >> 8;																					//
+			buffer_TX[12]=rezAtmPressureGPa_uint & 0xFF;																				//
+				result = calculate_Crc16(buffer_TX, 13);																					//
+				buffer_TX[13] = result & 0xFF;																										//
+				buffer_TX[14] = result >> 8;																											//	
+}																																													//
+//****************************************************************************************
+void ClearDataBufer(void)
+{
+	Flag_Receive_Buff_is_Full = 0;																											// очищаем буфер и флаги
+	Flag_Receive_valid = 0;																															//
+	Flag_Receive_data = 0;																															//
+	Flag_Receive_conf = 0;	
+	for (uint8_t i = 0; i<=19; i++){Data[i] = 0;}
+}
+
 void _Error_Handler(char *file, int line)
 {
   /* USER CODE BEGIN Error_Handler_Debug */
