@@ -12,7 +12,10 @@
 #define TIME_SENDING		50 // Частота чтения данных из датчика = 1/10 sek // 50 = 5 sek
 
 #define TIME_ASK_RAIN		10 // Частота опроса датчика дождя = 1/10 sek // 10 = 1 sek
-																			
+
+#define Address_Config_Bank1	0x08003FA0 //
+#define Address_Config_Bank2	Address_Config_Bank1+0x04 //
+
 #define OWN_ADDRESS_MODBUS	0xDC // Own address in HEX
 #define BaudRate_MODBUS	9600 // Default baud rate: 600, 1200, 2400, 4800, 9600, 14400, 19200, 28800, 38400, 56000, 57600
 #define Parity_MODBUS	0 // Default parity: 0-none, 1-odd, 2-even
