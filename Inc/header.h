@@ -9,9 +9,7 @@
 #include "BMP280/bmp280.h"	// Description of registers and commands BMP280
 
 
-#define TIME_SENDING		50 // Частота чтения данных из датчика = 1/10 sek // 50 = 5 sek
-
-#define TIME_ASK_RAIN		10 // Частота опроса датчика дождя = 1/10 sek // 10 = 1 sek
+#define TIME_ASK_WEATHER		50 // Частота чтения данных из датчика = 1/10 sek // 50 = 5 sek
 
 #define Address_Config_Bank1	0x08003FA0 //
 #define Address_Config_Bank2	Address_Config_Bank1+0x04 //
