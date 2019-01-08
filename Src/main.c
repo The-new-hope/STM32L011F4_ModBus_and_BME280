@@ -61,6 +61,11 @@ uint32_t flash_read(uint32_t address) {
 
 void USART2_IRQHandler(void)
 {
+
+	if (__HAL_UART_GET_FLAG(&huart2, USART_ISR_PE) != RESET){	
+				ClearDataBufer();
+			}
+__HAL_UART_CLEAR_PEFLAG(&huart2);
   HAL_UART_IRQHandler(&huart2);
 }
 
@@ -166,6 +171,8 @@ int main(void)
 				Flag_Start_colect = 0;																																// Сбрасываем флаг, разрешающий принимать данные
 				count = 0;																																						// 
 			}																																												//
+			
+//			if (USART_ISR_PE == 1){AnswerWithError(0xFF);}
 //			HAL_UART_Transmit(&huart2, &str, 1, 0xFFFF); //........................................................Строка для отладки !!!!....................................................................
 			HAL_UART_Receive_IT(&huart2, &str, 1);																									// Start UART Recive again					
 		}		
@@ -467,14 +474,13 @@ static void MX_USART2_UART_Init(void)
 {
 	if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_1) == 0){
 		huart2.Instance = USART2;
-		huart2.Init.BaudRate = flash_read(Address_Config_Bank2+0x10);
-		huart2.Init.WordLength = UART_WORDLENGTH_8B;
-			if (flash_read(Address_Config_Bank2+0x20) == 0){huart2.Init.Parity = UART_PARITY_NONE;}
-			if (flash_read(Address_Config_Bank2+0x20) == 1){huart2.Init.Parity = UART_PARITY_ODD;}
-			if (flash_read(Address_Config_Bank2+0x20) == 2){huart2.Init.Parity = UART_PARITY_EVEN;}
+		huart2.Init.BaudRate = flash_read(Address_Config_Bank2+0x10);	
+			if (flash_read(Address_Config_Bank2+0x20) == 0){huart2.Init.Parity = UART_PARITY_NONE; huart2.Init.WordLength = UART_WORDLENGTH_8B;}
+			else if (flash_read(Address_Config_Bank2+0x20) == 1){huart2.Init.Parity = UART_PARITY_ODD; huart2.Init.WordLength = UART_WORDLENGTH_9B;}
+			else if (flash_read(Address_Config_Bank2+0x20) == 2){huart2.Init.Parity = UART_PARITY_EVEN; huart2.Init.WordLength = UART_WORDLENGTH_9B;}
 			
 			if (flash_read(Address_Config_Bank2+0x30) == 1){huart2.Init.StopBits = UART_STOPBITS_1;}
-			if (flash_read(Address_Config_Bank2+0x30) == 2){huart2.Init.StopBits = UART_STOPBITS_2;}									
+			else if (flash_read(Address_Config_Bank2+0x30) == 2){huart2.Init.StopBits = UART_STOPBITS_2;}									
 		huart2.Init.Mode = UART_MODE_TX_RX;
 		huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
 		huart2.Init.OverSampling = UART_OVERSAMPLING_16;
@@ -487,13 +493,12 @@ static void MX_USART2_UART_Init(void)
 	}else{
 		huart2.Instance = USART2;
 		huart2.Init.BaudRate = flash_read(Address_Config_Bank1+0x10);
-		huart2.Init.WordLength = UART_WORDLENGTH_8B;
-			if (flash_read(Address_Config_Bank1+0x20) == 0){huart2.Init.Parity = UART_PARITY_NONE;}
-			if (flash_read(Address_Config_Bank1+0x20) == 1){huart2.Init.Parity = UART_PARITY_ODD;}
-			if (flash_read(Address_Config_Bank1+0x20) == 2){huart2.Init.Parity = UART_PARITY_EVEN;}
+			if (flash_read(Address_Config_Bank1+0x20) == 0){huart2.Init.Parity = UART_PARITY_NONE; huart2.Init.WordLength = UART_WORDLENGTH_8B;}
+			else if (flash_read(Address_Config_Bank1+0x20) == 1){huart2.Init.Parity = UART_PARITY_ODD; huart2.Init.WordLength = UART_WORDLENGTH_9B;}
+			else if (flash_read(Address_Config_Bank1+0x20) == 2){huart2.Init.Parity = UART_PARITY_EVEN; huart2.Init.WordLength = UART_WORDLENGTH_9B;}
 			
 			if (flash_read(Address_Config_Bank1+0x30) == 1){huart2.Init.StopBits = UART_STOPBITS_1;}
-			if (flash_read(Address_Config_Bank1+0x30) == 2){huart2.Init.StopBits = UART_STOPBITS_2;}									
+			else if (flash_read(Address_Config_Bank1+0x30) == 2){huart2.Init.StopBits = UART_STOPBITS_2;}									
 		huart2.Init.Mode = UART_MODE_TX_RX;
 		huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
 		huart2.Init.OverSampling = UART_OVERSAMPLING_16;
@@ -585,16 +590,20 @@ void WriteDefaultConf(void)																																						//## Функция за
 //  **************************************************************************************//
 void ReadWeatherData(void)																																// Функция чтения данных с датчика
 {																																													// и наполнение буфера buffer_TX[]
+			if (!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)) {							//
+				buffer_TX[3] |=(1<<0);
+			}else{
+				buffer_TX[3] &=~(1<<0);
+			}	
+//  ************
 			if (HAL_GPIO_ReadPin(GPIOB, GPIO_PIN_1) == 0){																			// Читаем новые данные
 				buffer_TX[4] |=(1<<1);																														//
 			}	else {																																						//
 				buffer_TX[4] &=~(1<<1);																														//
 			}																																										//
-			if (!bmp280_read_float(&bmp280, &temperature, &pressure, &humidity)) {							//
-				buffer_TX[3] |=(1<<0);
-			}else{
-				buffer_TX[3] &=~(1<<0);
-			}																																										// 
+//  ************																																					// 
+
+//  ************
 			uint16_t rezAtmPressureGPa_uint =  (uint16_t)pressure;															//
 			uint16_t rezHumidity_uint =        (uint16_t)(humidity * 10);												//
 			int16_t rezTemperature_int = (int16_t)(temperature * 10);														//
